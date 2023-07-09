@@ -1,4 +1,4 @@
-package projectname
+package bpskscala
 
 import spinal.core._
 
