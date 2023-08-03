@@ -9,6 +9,6 @@ object MyTopLevelFormal extends App {
   FormalConfig
     .withBMC(10)
     .doVerify(new Component {
-      val dut = FormalDut(Convolution(43))
+      val dut = FormalDut(FirFilter())
     })
 }
