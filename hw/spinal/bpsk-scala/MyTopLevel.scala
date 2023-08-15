@@ -12,9 +12,8 @@ case class Convolution[I <: AFix, O <: AFix](inputDataType:  HardType[I], output
   }
   //val mul = Vec(Reg(inputDataType), width)
   //val signal_hist = Vec(Reg(inputDataType), width)
-  val mul = Vec.fill(width)(Reg(inputDataType()))
-  val signal_hist = Vec.fill(width)(Reg(inputDataType()))
-  signal_hist.foreach( _ := 0.0) //TODO: init signal_hist only on instantiation
+  val mul = Vec.fill(width)(Reg(inputDataType()) init (0))
+  val signal_hist = Vec.fill(width)(Reg(inputDataType()) init(0))
   val coeff = Vec(AFix.S(2 exp, -12 exp), 43)
   coeff(0) := 0.01897049
   coeff(0).raw.msb := True
@@ -97,7 +96,7 @@ case class Convolution[I <: AFix, O <: AFix](inputDataType:  HardType[I], output
       whenIsActive {
           for( i <- 0 to width-1) {
             val res = (signal_hist(i) * coeff(i))
-            report(Seq(res.asSInt(), " = ", signal_hist(i).asSInt(), " * ", coeff(i).asSInt()))
+            //report(Seq(res.asSInt(), " = ", signal_hist(i).asSInt(), " * ", coeff(i).asSInt()))
             mul(i) := res.saturated
           }
           goto(pushResult)
@@ -105,11 +104,10 @@ case class Convolution[I <: AFix, O <: AFix](inputDataType:  HardType[I], output
     }
 
     val pushResult: State = new State {
-      val sum = Reg(outputDataType)
-      sum.allowOverride()
-      //onEntry(sum := 0.0)
+      val sum = outputDataType
+      //sum.allowOverride()
       whenIsActive {
-        mul.foreach( a => {sum := a +| sum} )
+        mul.foreach(sum := _ +| sum)
         report(Seq("sum: ", sum.asSInt()))
         io.result.push(sum)
         goto(idle)
@@ -141,12 +139,10 @@ case class FirFilter() extends Component {
           val tmp = AFix.S(2 exp, -12 exp)
           tmp := 1.0
           pushSignal.push(tmp)
-          report(Seq("input: ", tmp.asSInt()))    
         } otherwise { 
           val tmp = AFix.S(2 exp, -12 exp)
           tmp := 0.0
           pushSignal.push(tmp)
-          report(Seq("input: ", tmp.asSInt())) 
         }
         goto(pullResult)
       }
