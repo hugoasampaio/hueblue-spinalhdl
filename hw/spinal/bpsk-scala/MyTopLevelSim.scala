@@ -12,9 +12,8 @@ object MyTopLevelSim extends App {
   Config.sim.compile(FirFilter()).doSim { dut =>
     // Fork a process to generate the reset and the clock on the dut
     dut.clockDomain.forkStimulus(period = 10000)
-    for( i <- 0 to 10) {
+    for( i <- 0 to 45*4) {
       dut.clockDomain.waitSampling()
     }
-    println("sim output:  ", dut.io.result.toInt)
   }
 }

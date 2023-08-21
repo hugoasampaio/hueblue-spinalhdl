@@ -5,84 +5,85 @@ import spinal.lib._
 import spinal.lib.fsm._
 
 // Hardware definition
-case class Convolution[I <: AFix, O <: AFix](inputDataType:  HardType[I], outputDataType:  HardType[O], width: Int) extends Component {
+class Convolution(iwl: Int, fwl:  Int) extends Component {
+  var rrc_taps = Vec(AFix.S(2 exp, -12 exp), 43)
+  rrc_taps(0) := 0.01897049
+  rrc_taps(0).raw.msb := True
+  rrc_taps(1) := 0.01842133
+  rrc_taps(1).raw.msb := True
+  rrc_taps(2) := 0.00954316
+  rrc_taps(2).raw.msb := True
+  rrc_taps(3) := 0.00624239
+  rrc_taps(4) := 0.02459163
+  rrc_taps(5) := 0.03898283
+  rrc_taps(6) := 0.04231734
+  rrc_taps(7) := 0.02906669
+  rrc_taps(8) := 0.00255221
+  rrc_taps(8).raw.msb := True
+  rrc_taps(9) := 0.04897974
+  rrc_taps(9).raw.msb := True
+  rrc_taps(10) := 0.10083352
+  rrc_taps(10).raw.msb := True
+  rrc_taps(11) := 0.1438624
+  rrc_taps(11).raw.msb := True
+  rrc_taps(12) := 0.16131922
+  rrc_taps(12).raw.msb := True
+  rrc_taps(13) := 0.13737078
+  rrc_taps(13).raw.msb := True
+  rrc_taps(14) := 0.0608575
+  rrc_taps(14).raw.msb := True
+  rrc_taps(15) := 0.07144658
+  rrc_taps(16) := 0.25288767
+  rrc_taps(17) := 0.46687654
+  rrc_taps(18) := 0.68890519
+  rrc_taps(19) := 0.89035557
+  rrc_taps(20) := 1.04339768
+  rrc_taps(21) := 1.12599805
+  rrc_taps(22) := 1.12599805
+  rrc_taps(23) := 1.04339768
+  rrc_taps(24) := 0.89035557
+  rrc_taps(25) := 0.68890519
+  rrc_taps(26) := 0.46687654
+  rrc_taps(27) := 0.25288767
+  rrc_taps(28) := 0.07144658
+  rrc_taps(29) := 0.0608575
+  rrc_taps(29).raw.msb := True
+  rrc_taps(30) := 0.13737078
+  rrc_taps(30).raw.msb := True
+  rrc_taps(31) := 0.16131922
+  rrc_taps(31).raw.msb := True
+  rrc_taps(32) := 0.1438624
+  rrc_taps(32).raw.msb := True
+  rrc_taps(33) := 0.10083352
+  rrc_taps(33).raw.msb := True
+  rrc_taps(34) := 0.04897974
+  rrc_taps(34).raw.msb := True
+  rrc_taps(35) := 0.00255221
+  rrc_taps(35).raw.msb := True
+  rrc_taps(36) := 0.02906669
+  rrc_taps(37) := 0.04231734
+  rrc_taps(38) := 0.03898283
+  rrc_taps(39) := 0.02459163
+  rrc_taps(40) := 0.00624239
+  rrc_taps(41) := 0.00954316
+  rrc_taps(41).raw.msb := True
+  rrc_taps(42) := 0.01842133
+  rrc_taps(42).raw.msb := True
   val io = new Bundle {
-    var signal = slave  Flow(inputDataType)
-    var result = master Flow(outputDataType)
+    var signal = slave  Flow(AFix.S(iwl exp, fwl exp))
+    var result = master Flow(AFix.S(iwl exp, fwl exp))
   }
   //val mul = Vec(Reg(inputDataType), width)
   //val signal_hist = Vec(Reg(inputDataType), width)
-  val mul = Vec.fill(width)(Reg(inputDataType()) init (0))
-  val signal_hist = Vec.fill(width)(Reg(inputDataType()) init(0))
-  val coeff = Vec(AFix.S(2 exp, -12 exp), 43)
-  coeff(0) := 0.01897049
-  coeff(0).raw.msb := True
-  coeff(1) := 0.01842133
-  coeff(1).raw.msb := True
-  coeff(2) := 0.00954316
-  coeff(2).raw.msb := True
-  coeff(3) := 0.00624239
-  coeff(4) := 0.02459163
-  coeff(5) := 0.03898283
-  coeff(6) := 0.04231734
-  coeff(7) := 0.02906669
-  coeff(8) := 0.00255221
-  coeff(8).raw.msb := True
-  coeff(9) := 0.04897974
-  coeff(9).raw.msb := True
-  coeff(10) := 0.10083352
-  coeff(10).raw.msb := True
-  coeff(11) := 0.1438624
-  coeff(11).raw.msb := True
-  coeff(12) := 0.16131922
-  coeff(12).raw.msb := True
-  coeff(13) := 0.13737078
-  coeff(13).raw.msb := True
-  coeff(14) := 0.0608575
-  coeff(14).raw.msb := True
-  coeff(15) := 0.07144658
-  coeff(16) := 0.25288767
-  coeff(17) := 0.46687654
-  coeff(18) := 0.68890519
-  coeff(19) := 0.89035557
-  coeff(20) := 1.04339768
-  coeff(21) := 1.12599805
-  coeff(22) := 1.12599805
-  coeff(23) := 1.04339768
-  coeff(24) := 0.89035557
-  coeff(25) := 0.68890519
-  coeff(26) := 0.46687654
-  coeff(27) := 0.25288767
-  coeff(28) := 0.07144658
-  coeff(29) := 0.0608575
-  coeff(29).raw.msb := True
-  coeff(30) := 0.13737078
-  coeff(30).raw.msb := True
-  coeff(31) := 0.16131922
-  coeff(31).raw.msb := True
-  coeff(32) := 0.1438624
-  coeff(32).raw.msb := True
-  coeff(33) := 0.10083352
-  coeff(33).raw.msb := True
-  coeff(34) := 0.04897974
-  coeff(34).raw.msb := True
-  coeff(35) := 0.00255221
-  coeff(35).raw.msb := True
-  coeff(36) := 0.02906669
-  coeff(37) := 0.04231734
-  coeff(38) := 0.03898283
-  coeff(39) := 0.02459163
-  coeff(40) := 0.00624239
-  coeff(41) := 0.00954316
-  coeff(41).raw.msb := True
-  coeff(42) := 0.01842133
-  coeff(42).raw.msb := True
+  val mul = Vec.fill(rrc_taps.length)(Reg(AFix.S(iwl exp, fwl exp)) init (0))
+  val signal_hist = Vec.fill(rrc_taps.length)(Reg(AFix.S(iwl exp, fwl exp)) init(0))
+  
   val fsm = new StateMachine {
     io.result.setIdle()
-
+    val sum = Reg(AFix.S(iwl exp, fwl exp)) init (0)
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        for (index <- 1 to (width-1)) {
+        for (index <- 1 until rrc_taps.length) {
           signal_hist(index) := signal_hist(index-1)
         }
         when(io.signal.valid) {
@@ -94,20 +95,24 @@ case class Convolution[I <: AFix, O <: AFix](inputDataType:  HardType[I], output
 
     val multiply: State = new State {
       whenIsActive {
-          for( i <- 0 to width-1) {
-            val res = (signal_hist(i) * coeff(i))
-            //report(Seq(res.asSInt(), " = ", signal_hist(i).asSInt(), " * ", coeff(i).asSInt()))
+          for( i <- 0 until rrc_taps.length) {
+            val res = (signal_hist(i) * rrc_taps(i))
+            //report(Seq(res.asSInt(), " = ", signal_hist(i).asSInt(), " * ", rrc_taps(i).asSInt()))
             mul(i) := res.saturated
           }
-          goto(pushResult)
+          goto(calcResult)
        }
     }
 
-    val pushResult: State = new State {
-      val sum = outputDataType
-      //sum.allowOverride()
+    val calcResult: State = new State {
       whenIsActive {
-        mul.foreach(sum := _ +| sum)
+        sum := mul.reduce(_ + _).saturated
+        goto(pushResult)
+      }
+    }
+
+    val pushResult: State = new State {
+      whenIsActive {
         report(Seq("sum: ", sum.asSInt()))
         io.result.push(sum)
         goto(idle)
@@ -122,7 +127,7 @@ case class FirFilter() extends Component {
   val io = new Bundle {
     var result = out SInt(15 bits)
   }
-  val filter = new Convolution(AFix.S(2 exp, -12 exp), AFix.S(2 exp, -12 exp),  43)
+  val filter = new Convolution(2, -12)
   val counter = Reg(UInt(6 bits)) init (0)
   val pushSignal = master Flow(AFix.S(2 exp, -12 exp))
   filter.io.signal << pushSignal 
