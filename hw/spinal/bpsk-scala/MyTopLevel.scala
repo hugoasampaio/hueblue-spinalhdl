@@ -77,19 +77,18 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
   }
 
   val mul = Vec.fill(rrc_taps.length)(Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init (0))
-  val signal_hist = Vec.fill(rrc_taps.length)(Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init(0))
+  val sigHist = Vec.fill(rrc_taps.length)(Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init(0))
   
   val fsm = new StateMachine {
     io.result.setIdle()
-    val sum = Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init (0)
+    val sum = Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init(0)
     val idle: State = new State with EntryPoint {
       whenIsActive {
         for (index <- 1 until rrc_taps.length) {
-          signal_hist(index) := signal_hist(index-1)
+          sigHist(index).setFxp(sigHist(index-1).getFxp())
         }
-        rrc_taps(0)
         when(io.signal.valid) {
-          signal_hist(0).getFxp() := io.signal.payload
+          sigHist(0).setFxp(io.signal.payload)
           goto(multiply)
         }
       }
@@ -98,14 +97,28 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
     val multiply: State = new State {
       whenIsActive {
         for( i <- 0 until rrc_taps.length) {
-            val res = (signal_hist(i) * rrc_taps(i))
-            mul(i) := res
+            var tmp = sigHist(i) * rrc_taps(i)
+            mul(i) := tmp
+            report(Seq("tmp: ", tmp.getFxp.asSInt))
         }
+        goto(reduceStep)
+      }
+    }
+
+    val reduceStep: State = new State {
+      whenIsActive {
+        report(Seq("mul: ", mul(0).getFxp.asSInt))
         sum := mul.reduce(_ + _)
-        report(Seq("sum: ", sum.getFxp().asSInt()))
+        goto(returnValue)
+       }
+    }
+
+    val returnValue: State = new State {
+      whenIsActive {
+        report(Seq("sum: ", sum.getFxp().asBits))
         io.result.push(sum.getFxp())
         goto(idle)
-       }
+      }
     }
   }
 }
