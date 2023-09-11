@@ -7,7 +7,7 @@ import LimitedFix._
 
 // Hardware definition
 class Convolution(iwl: Int, fwl:  Int) extends Component {
-  var rrc_taps = Vec(LimitedFix(AFix.S(2 exp, -12 exp)), 43)
+  val rrc_taps = Vec(LimitedFix(AFix.S(2 exp, -12 exp)), 43)
   rrc_taps(0).getFxp() := 0.01897049
   rrc_taps(0).getFxp().raw.msb := True
   rrc_taps(1).getFxp() := 0.01842133
@@ -72,23 +72,23 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
   rrc_taps(42).getFxp().raw.msb := True
 
   val io = new Bundle {
-    var signal = slave  Flow(AFix.S(iwl exp, fwl exp))
-    var result = master Flow(AFix.S(iwl exp, fwl exp))
+    val signal = slave  Flow(AFix.S(iwl exp, fwl exp))
+    val result = master Flow(AFix.S(iwl exp, fwl exp))
   }
 
-  val mul = Vec.fill(rrc_taps.length)(Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init (0))
-  val sigHist = Vec.fill(rrc_taps.length)(Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init(0))
+  val mul =     Vec.fill(rrc_taps.length)(Reg(AFix.S(iwl exp, fwl exp)))
+  val sigHist = Vec.fill(rrc_taps.length)(Reg(AFix.S(iwl exp, fwl exp)) init(0))
   
   val fsm = new StateMachine {
     io.result.setIdle()
     val sum = Reg(LimitedFix(AFix.S(iwl exp, fwl exp))) init(0)
     val idle: State = new State with EntryPoint {
       whenIsActive {
-        for (index <- 1 until rrc_taps.length) {
-          sigHist(index).setFxp(sigHist(index-1).getFxp())
-        }
         when(io.signal.valid) {
-          sigHist(0).setFxp(io.signal.payload)
+          sigHist(0) := (io.signal.payload)
+          for (index <-  1 until rrc_taps.length) {
+            sigHist(index) := sigHist(index - 1)
+          }
           goto(multiply)
         }
       }
@@ -97,9 +97,9 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
     val multiply: State = new State {
       whenIsActive {
         for( i <- 0 until rrc_taps.length) {
-            var tmp = sigHist(i) * rrc_taps(i)
-            mul(i) := tmp
-            report(Seq("tmp: ", tmp.getFxp.asSInt))
+            val tmp = sigHist(i) * rrc_taps(i).getFxp()
+            mul(i) := tmp.saturated
+            //report(Seq("tmp: ", tmp.asSInt, " len: ", tmp.bitWidth.toString()))
         }
         goto(reduceStep)
       }
@@ -107,15 +107,15 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
 
     val reduceStep: State = new State {
       whenIsActive {
-        report(Seq("mul: ", mul(0).getFxp.asSInt))
-        sum := mul.reduce(_ + _)
+        //report(Seq("mul: ", mul(0).getFxp.asSInt, " len: ", mul(0).getFxp.bitWidth.toString()))
+        sum := LimitedFix(mul.reduce(_ + _))
         goto(returnValue)
        }
     }
 
     val returnValue: State = new State {
       whenIsActive {
-        report(Seq("sum: ", sum.getFxp().asBits))
+        report(Seq("sum: ", sum.getFxp().asSInt))
         io.result.push(sum.getFxp())
         goto(idle)
       }
@@ -127,7 +127,7 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
 
 case class FirFilter() extends Component {
   val io = new Bundle {
-    var result = out SInt(15 bits)
+    val result = out SInt(15 bits)
   }
   val filter = new Convolution(2, -12)
   val counter = Reg(UInt(6 bits)) init (0)

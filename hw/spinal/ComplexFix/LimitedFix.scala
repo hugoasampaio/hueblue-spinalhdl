@@ -13,7 +13,8 @@ object LimitedFix {
 
 class LimitedFix(fxp: AFix) extends MultiData {
 
-    var baseMask = Bits(fxp.bitWidth bits).setAll()
+    var zeroesBitMask = Reg(Bits(fxp.bitWidth bits))
+    zeroesBitMask.setAll()
 
     def assignFromImpl(that: AnyRef,target: AnyRef,kind: AnyRef)
         (implicit loc: spinal.idslplugin.Location): Unit = {
@@ -32,30 +33,31 @@ class LimitedFix(fxp: AFix) extends MultiData {
 
     def setFxp(tmp: AFix): Unit = fxp := tmp
 
-    def clearFwlBits(numBits: Int) {
-        for (index <- 0 to numBits ) {
-            baseMask(0) := False
-        }
-        fxp.raw := fxp.raw & baseMask 
+    def applyBaseMask(): Unit = {
+        var tmp = fxp.raw & zeroesBitMask
+        fxp.raw := tmp
     }
 
     def +(that: LimitedFix): LimitedFix = {
         var tmp = fxp +| that.getFxp()
-        LimitedFix(tmp)
-        //fxp.allowOverride()
-        //fxp.raw := tmp.raw & baseMask
-        //this
+        LimitedFix(tmp.truncated)
     }
 
     def *(that: LimitedFix): LimitedFix = {
         var tmp = fxp * that.getFxp()
         LimitedFix(tmp.saturated)
-        //fxp.raw := tmp.raw & baseMask
+    }
+
+    def *(that: AFix): LimitedFix = {
+        var tmp = fxp * that
+        LimitedFix(tmp.saturated)
     }
 
     def :=(that: LimitedFix): LimitedFix = {
-        this.baseMask = that.baseMask
-        this.fxp := that.getFxp()
+        this.fxp := that.getFxp().saturated
+        when(fxp === that.getFxp()) { 
+            applyBaseMask()
+        }
         this
     }
 }
