@@ -76,7 +76,7 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
     val result = master Flow(AFix.S(iwl exp, fwl exp))
   }
 
-  val mul =     Vec.fill(rrc_taps.length)(Reg(AFix.S(iwl exp, fwl exp)))
+  val mul =     Vec.fill(rrc_taps.length)(LimitedFix(Reg(AFix.S(iwl exp, fwl exp))))
   val sigHist = Vec.fill(rrc_taps.length)(Reg(AFix.S(iwl exp, fwl exp)) init(0))
   
   val fsm = new StateMachine {
@@ -97,9 +97,13 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
     val multiply: State = new State {
       whenIsActive {
         for( i <- 0 until rrc_taps.length) {
-            val tmp = sigHist(i) * rrc_taps(i).getFxp()
-            mul(i) := tmp.saturated
-            //report(Seq("tmp: ", tmp.asSInt, " len: ", tmp.bitWidth.toString()))
+          /*
+            val tmp = AFix.S(2 exp, -12 exp)
+            tmp := (sigHist(i) * rrc_taps(i).getFxp()).saturated
+            mul(i) := tmp
+          */
+          mul(i) := LimitedFix((sigHist(i) * rrc_taps(i).getFxp()).saturated)
+          //report(Seq("tmp: ", mul(i).asSInt, " len: ", mul(i).bitWidth.toString()))
         }
         goto(reduceStep)
       }
@@ -107,8 +111,9 @@ class Convolution(iwl: Int, fwl:  Int) extends Component {
 
     val reduceStep: State = new State {
       whenIsActive {
-        //report(Seq("mul: ", mul(0).getFxp.asSInt, " len: ", mul(0).getFxp.bitWidth.toString()))
-        sum := LimitedFix(mul.reduce(_ + _))
+        //report(Seq("mul: ", mul(0).asSInt, " len: ", mul(0).bitWidth.toString()))
+
+        sum := mul.reduce(_ + _)
         goto(returnValue)
        }
     }
