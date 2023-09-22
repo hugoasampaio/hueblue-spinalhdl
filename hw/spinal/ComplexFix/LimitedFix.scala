@@ -4,27 +4,29 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
 import scala.collection.mutable.ArrayBuffer
+import Constants._
+import spinal.core
 
 object LimitedFix {
-    def apply(fxp: AFix): LimitedFix = {
-        new LimitedFix(fxp)
+    def apply(fxp: AFix, optimize: Bool): LimitedFix = {
+        new LimitedFix(fxp, optimize)
     }
 }
 
-class LimitedFix(fxp: AFix) extends MultiData {
-
+class LimitedFix(fxp: AFix, optimize: Bool) extends MultiData {
     var zeroesBitMask = Reg(Bits(fxp.bitWidth bits))
     zeroesBitMask.setAll()
     zeroesBitMask.lsb := False
 
+    
     def assignFromImpl(that: AnyRef,target: AnyRef,kind: AnyRef)
         (implicit loc: spinal.idslplugin.Location): Unit = {
         }
-
+    
     def elements: scala.collection.mutable.ArrayBuffer[(String, spinal.core.Data)] = {
         ArrayBuffer("" -> fxp.raw)
     }
-
+    
     def init(num: BigDecimal): LimitedFix ={
         fxp := num
         this
@@ -32,18 +34,10 @@ class LimitedFix(fxp: AFix) extends MultiData {
     
     def getFxp(): AFix = fxp
 
-    def setFxp(tmp: AFix): Unit = fxp := tmp
-
-    def applyBaseMask(): Unit = {
-        var tmp = fxp.raw & zeroesBitMask
-        fxp.raw := tmp
-        report(" limited ")
-    }
-
     def +(that: LimitedFix): LimitedFix = {
-        val tmp = AFix.S(2 exp, -12 exp)
+        val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := fxp +| that.getFxp()
-        LimitedFix(tmp.saturated)
+        new LimitedFix(tmp.saturated, False)
     }
 
     def *(that: LimitedFix): LimitedFix = {
@@ -51,14 +45,13 @@ class LimitedFix(fxp: AFix) extends MultiData {
     }
 
     def *(that: AFix): LimitedFix = {
-        val tmp = AFix.S(2 exp, -12 exp)
+        val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := fxp * that
-        LimitedFix(tmp.saturated)
+        new LimitedFix(tmp.saturated, False)
     }
 
     def :=(that: LimitedFix): LimitedFix = {
-        val tmp = AFix.S(2 exp, -12 exp)
-        //report(Seq("bits: ", tmp.asSInt))
+        val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := that.getFxp()
         this.fxp.raw := tmp.raw & zeroesBitMask
         this
