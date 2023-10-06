@@ -5,20 +5,25 @@ import spinal.core.sim._
 import spinal.lib._
 import scala.collection.mutable.ArrayBuffer
 import Constants._
+import LimitedFixMask._
 import spinal.core
 
 object LimitedFix {
-    def apply(fxp: AFix, optimize: Bool): LimitedFix = {
-        new LimitedFix(fxp, optimize)
+    def apply(fxp: AFix, id: Int): LimitedFix = {
+      val nonMasked = AFix.S(Constants.IWL exp, Constants.FWL exp)
+      val masked = AFix.S(Constants.IWL exp, Constants.FWL exp)
+      nonMasked := fxp //fix bitWidth from fxp
+      masked.raw := nonMasked.raw & B"15'h7fff"
+      new LimitedFix(masked)
+    }
+    
+    def apply(fxp: AFix): LimitedFix = {
+        new LimitedFix(fxp)
     }
 }
 
-class LimitedFix(fxp: AFix, optimize: Bool) extends MultiData {
-    var zeroesBitMask = Reg(Bits(fxp.bitWidth bits))
-    zeroesBitMask.setAll()
-    zeroesBitMask.lsb := False
+case class LimitedFix(fxp: AFix) extends MultiData {
 
-    
     def assignFromImpl(that: AnyRef,target: AnyRef,kind: AnyRef)
         (implicit loc: spinal.idslplugin.Location): Unit = {
         }
@@ -37,7 +42,7 @@ class LimitedFix(fxp: AFix, optimize: Bool) extends MultiData {
     def +(that: LimitedFix): LimitedFix = {
         val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := fxp +| that.getFxp()
-        new LimitedFix(tmp.saturated, False)
+        new LimitedFix(tmp.saturated)
     }
 
     def *(that: LimitedFix): LimitedFix = {
@@ -47,13 +52,13 @@ class LimitedFix(fxp: AFix, optimize: Bool) extends MultiData {
     def *(that: AFix): LimitedFix = {
         val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := fxp * that
-        new LimitedFix(tmp.saturated, False)
+        new LimitedFix(tmp.saturated)
     }
 
-    def :=(that: LimitedFix): LimitedFix = {
+    def :=(that: LimitedFix) = {
         val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := that.getFxp()
-        this.fxp.raw := tmp.raw & zeroesBitMask
-        this
+        this.fxp := tmp
     }
 }
+

@@ -5,28 +5,31 @@ import spinal.lib._
 import spinal.lib.fsm._
 import LimitedFix._
 import Constants._
+import LimitedFixMask._
 
 // Hardware definition
 
-class Convolution extends Component {
-  val rrc_taps = new RRC_FILTER().rrc_taps
+case class Convolution() extends Component {
+  //report("bundle")
   val io = new Bundle {
     val signal = slave  Flow(AFix.S(Constants.IWL exp, Constants.FWL exp))
     val result = master Flow(AFix.S(Constants.IWL exp, Constants.FWL exp))
   }
+  val coeffs = RRC_FILTER().rrc_taps
 
-  val mul =     Vec.fill(rrc_taps.length)(Reg(LimitedFix(AFix.S(Constants.IWL exp, Constants.FWL exp), True)))
-  val sigHist = Vec.fill(rrc_taps.length)(Reg(AFix.S(Constants.IWL exp, Constants.FWL exp)) init(0))
-  val sum = Reg(LimitedFix(AFix.S(Constants.IWL exp, Constants.FWL exp), True)) init(0)
-  
+  //report("signals")
+  val mul =     Vec.fill(coeffs.length)(Reg(LimitedFix(AFix.S(Constants.IWL exp, Constants.FWL exp), 2)) init(0))
+  val sigHist = Vec.fill(coeffs.length)(Reg(AFix.S(Constants.IWL exp, Constants.FWL exp)) init(0))
+  val sum = Reg(LimitedFix(AFix.S(Constants.IWL exp, Constants.FWL exp), 3)) init(0)
+ 
   val fsm = new StateMachine {
-    io.result.setIdle()
     val idle: State = new State with EntryPoint {
+      io.result.setIdle()
       whenIsActive {
         when(io.signal.valid) {
           sigHist(0) := (io.signal.payload)
-          report("beforeSift")
-          for (index <-  1 until rrc_taps.length) {
+          //report("beforeSift")
+          for (index <- 1 until coeffs.length) {
             sigHist(index) := sigHist(index - 1)
           }
           goto(multiply)
@@ -36,9 +39,9 @@ class Convolution extends Component {
 
     val multiply: State = new State {
       whenIsActive {
-        report("beforeMul")
-        for( i <- 0 until rrc_taps.length) {
-          mul(i) := LimitedFix((sigHist(i) * (rrc_taps(i).getFxp())).saturated, True)
+        //report("beforeMul")
+        for( i <- 0 until coeffs.length) {
+          mul(i) := LimitedFix((sigHist(i) * (coeffs(i).getFxp())).saturated, 0)
           //report(Seq("tmp: ", mul(i).asSInt, " len: ", mul(i).bitWidth.toString()))
         }
         goto(reduceStep)
@@ -47,7 +50,7 @@ class Convolution extends Component {
 
     val reduceStep: State = new State {
       whenIsActive {
-        report("beforeReduce")
+        //report("beforeReduce")
         sum := mul.reduce(_ + _)
         goto(returnValue)
        }
@@ -63,21 +66,24 @@ class Convolution extends Component {
   }
 }
 
-
-
 case class FirFilter() extends Component {
   val io = new Bundle {
     val result = out SInt(15 bits)
   }
-  val filter = new Convolution()
+
+  val filter =  Convolution()
+  val lfm = LimitedFixMask()
   val counter = Reg(UInt(6 bits)) init (0)
   val pushSignal = master Flow(AFix.S(Constants.IWL exp, Constants.FWL exp))
-  filter.io.signal << pushSignal 
+  val pushMask = master Flow(UInt(15 bits))
+
+  filter.io.signal << pushSignal
+  lfm.io.setter << pushMask
 
   val fsm = new StateMachine {
-    val res = Reg(SInt(15 bits))
+    val res = Reg(SInt(15 bits)) init(0)
     io.result := 0
-    res := 0
+    pushMask.push(B"15'h7fff".asUInt)
     val pushInput: State = new State with EntryPoint {
       pushSignal.setIdle()
       whenIsActive {
@@ -95,11 +101,22 @@ case class FirFilter() extends Component {
     }
 
     val pullResult: State = new State {
+      val fullLoop = Reg(UInt(4 bits)) init (0)
       whenIsActive {
         when (filter.io.result.valid) {
           res := filter.io.result.toReg().asSInt()
           io.result := res
-          counter := counter + 1
+          when (counter > RRC_FILTER().rrc_taps.length) {
+            counter := 0
+            fullLoop := fullLoop + 1
+
+            val shiftedMask = B"15'h7fff" |<< fullLoop
+            pushMask.push(shiftedMask.asUInt)
+            report(Seq("shiftedMask: ", shiftedMask))
+
+          } otherwise {
+            counter := counter + 1
+          }
           goto(pushInput)
         }
       }
