@@ -5,7 +5,7 @@ import spinal.core.sim._
 import spinal.lib._
 import scala.collection.mutable.ArrayBuffer
 import Constants._
-import LimitedFixMask._
+import bpskscala._
 import spinal.core
 
 object LimitedFix {
@@ -13,21 +13,24 @@ object LimitedFix {
       val nonMasked = AFix.S(Constants.IWL exp, Constants.FWL exp)
       val masked = AFix.S(Constants.IWL exp, Constants.FWL exp)
       nonMasked := fxp //fix bitWidth from fxp
-      masked.raw := nonMasked.raw & B"15'h7fff"
-      new LimitedFix(masked)
+      masked.raw := nonMasked.raw
+      new LimitedFix(masked, id)
     }
-    
+
+    /*
     def apply(fxp: AFix): LimitedFix = {
         new LimitedFix(fxp)
     }
+    */
 }
 
-case class LimitedFix(fxp: AFix) extends MultiData {
-
+class LimitedFix(fxp: AFix, id: Int) extends MultiData {
     def assignFromImpl(that: AnyRef,target: AnyRef,kind: AnyRef)
         (implicit loc: spinal.idslplugin.Location): Unit = {
         }
-    
+
+    this.setName(this.name+"id"+id)
+    this.addAttribute("id", id);
     def elements: scala.collection.mutable.ArrayBuffer[(String, spinal.core.Data)] = {
         ArrayBuffer("" -> fxp.raw)
     }
@@ -42,7 +45,7 @@ case class LimitedFix(fxp: AFix) extends MultiData {
     def +(that: LimitedFix): LimitedFix = {
         val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := fxp +| that.getFxp()
-        new LimitedFix(tmp.saturated)
+        new LimitedFix(tmp.saturated, 0)
     }
 
     def *(that: LimitedFix): LimitedFix = {
@@ -52,13 +55,14 @@ case class LimitedFix(fxp: AFix) extends MultiData {
     def *(that: AFix): LimitedFix = {
         val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
         tmp := fxp * that
-        new LimitedFix(tmp.saturated)
+        new LimitedFix(tmp.saturated, 0)
     }
 
     def :=(that: LimitedFix) = {
-        val tmp = AFix.S(Constants.IWL exp, Constants.FWL exp)
-        tmp := that.getFxp()
-        this.fxp := tmp
+      val tmp1 = AFix.S(Constants.IWL exp, Constants.FWL exp)
+      //val tmp2 = AFix.S(Constants.IWL exp, Constants.FWL exp)
+      tmp1 := that.getFxp()
+      this.fxp := tmp1
     }
 }
 

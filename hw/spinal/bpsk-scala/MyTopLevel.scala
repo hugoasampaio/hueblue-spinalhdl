@@ -5,8 +5,6 @@ import spinal.lib._
 import spinal.lib.fsm._
 import LimitedFix._
 import Constants._
-import LimitedFixMask._
-
 // Hardware definition
 
 case class Convolution() extends Component {
@@ -14,6 +12,7 @@ case class Convolution() extends Component {
   val io = new Bundle {
     val signal = slave  Flow(AFix.S(Constants.IWL exp, Constants.FWL exp))
     val result = master Flow(AFix.S(Constants.IWL exp, Constants.FWL exp))
+
   }
   val coeffs = RRC_FILTER().rrc_taps
 
@@ -21,7 +20,7 @@ case class Convolution() extends Component {
   val mul =     Vec.fill(coeffs.length)(Reg(LimitedFix(AFix.S(Constants.IWL exp, Constants.FWL exp), 2)) init(0))
   val sigHist = Vec.fill(coeffs.length)(Reg(AFix.S(Constants.IWL exp, Constants.FWL exp)) init(0))
   val sum = Reg(LimitedFix(AFix.S(Constants.IWL exp, Constants.FWL exp), 3)) init(0)
- 
+
   val fsm = new StateMachine {
     val idle: State = new State with EntryPoint {
       io.result.setIdle()
@@ -72,18 +71,15 @@ case class FirFilter() extends Component {
   }
 
   val filter =  Convolution()
-  val lfm = LimitedFixMask()
+  val masks = Vec.fill(10) (Reg(Bits(15 bits)) init(B"15'h7fff"))
   val counter = Reg(UInt(6 bits)) init (0)
   val pushSignal = master Flow(AFix.S(Constants.IWL exp, Constants.FWL exp))
-  val pushMask = master Flow(UInt(15 bits))
 
   filter.io.signal << pushSignal
-  lfm.io.setter << pushMask
 
   val fsm = new StateMachine {
     val res = Reg(SInt(15 bits)) init(0)
     io.result := 0
-    pushMask.push(B"15'h7fff".asUInt)
     val pushInput: State = new State with EntryPoint {
       pushSignal.setIdle()
       whenIsActive {
@@ -111,7 +107,7 @@ case class FirFilter() extends Component {
             fullLoop := fullLoop + 1
 
             val shiftedMask = B"15'h7fff" |<< fullLoop
-            pushMask.push(shiftedMask.asUInt)
+            masks(1) := shiftedMask
             report(Seq("shiftedMask: ", shiftedMask))
 
           } otherwise {
@@ -130,4 +126,66 @@ object MyTopLevelVerilog extends App {
 
 object MyTopLevelVhdl extends App {
   Config.spinal.generateVhdl(FirFilter())
+}
+
+
+object FindAllAddersManualy {
+  import spinal.core.internals._
+  import spinal.core._
+
+  class PrintBaseTypes(message : String) extends Phase {
+
+    override def impl(pc: PhaseContext) = {
+      println(message)
+      pc.walkExpression {
+        //case op: Operator.BitVector.Add => println(s"op: ${op.left} + ${op.right}")
+        case bs: BaseType => recBaseType(bs)
+        case as: AssignmentExpression => recAssignExp(as)
+        case op: ConstantOperator => println(s"const op: ${op.opName}")
+        //case ss:
+        case _ =>
+      }
+
+      def recAssignExp(ae: AssignmentExpression): Unit = {
+        ae.walkDrivingExpressions{
+          case a: LimitedFix => println(s"assign exp: ${a.name}")
+          case _ =>
+        }
+      }
+
+      def recBaseType(b: BaseType): Unit = {
+
+        if (b.isTypeNode == false) {
+          println(s"name: ${b.name} - class: ${b.getDisplayName()} - opname: ${b.opName} - name: ${b.name}")
+        }
+
+        //println(s"tag: ${b.getTag(SpinalTagReady.getClass).toString}")
+        /*
+        val tags = b.getTag(LimitedFix.getClass)
+        tags match {
+          case as : SpinalTag => println(s"attr: ${as.toString()}")
+          case _ => 
+        }
+        */
+      }
+    }
+
+    override def hasNetlistImpact = false
+
+    override def toString = s"${super.toString} - $message"
+  }
+
+  def main(args: Array[String]): Unit = {
+    val config = SpinalConfig()
+
+    //Add a early phase
+    config.addTransformationPhase(new PrintBaseTypes("Early"))
+
+    //Add a late phase
+    config.phasesInserters += {phases =>
+      phases.insert(phases.indexWhere(_.isInstanceOf[PhaseVerilog]), new PrintBaseTypes("Late"))
+    }
+    config.generateVerilog(new FirFilter())
+  }
+
 }

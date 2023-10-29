@@ -5,7 +5,6 @@ import spinal.lib._
 import spinal.lib.fsm._
 import LimitedFix._
 import Constants._
-import LimitedFixMask._
 
 object Constants{
   val IWL: Int = 2
@@ -14,7 +13,6 @@ object Constants{
 }
 
 case class RRC_FILTER() extends Bundle {
-  val maskCtl = LimitedFixMask
   val rrc_taps = Vec.fill(5)(Reg(LimitedFix(AFix.S(Constants.IWL exp, Constants.FWL exp), 1)))
   rrc_taps.allowOverride()
   rrc_taps(0).getFxp() := 0.01897049
